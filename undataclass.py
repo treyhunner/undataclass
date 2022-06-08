@@ -342,7 +342,7 @@ def undataclass(code):
             i,
             *ast.parse("from functools import total_ordering").body,
         )
-    return ast.unparse(new_nodes)
+    return ast.unparse(new_nodes) + "\n"
 
 
 def main():
