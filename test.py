@@ -13,10 +13,13 @@ class TestUndataclass(unittest.TestCase):
         filename = f"{module_name}.py"
         before = Path(tests / "before" / filename).read_text()
         after = Path(tests / "after" / filename).read_text()
-        self.assertEqual(undataclass(before), after)
+        self.assertEqual(undataclass(before) + "\n", after)
 
     def test_from_import_no_args_no_fields_or_defaults(self):
         self.validate("simple")
+
+    def test_slots_and_frozen_args_with_default_and_factory(self):
+        self.validate("frozen_and_slots")
 
 
 if __name__ == "__main__":

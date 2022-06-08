@@ -3,6 +3,9 @@ import dataclasses
 from textwrap import dedent, indent
 
 
+__all__ = ["undataclass"]
+
+
 def is_dataclass_decorator(node):
     match node:
         case ast.Call(func=ast.Attribute(
@@ -342,7 +345,7 @@ def undataclass(code):
             i,
             *ast.parse("from functools import total_ordering").body,
         )
-    return ast.unparse(new_nodes) + "\n"
+    return ast.unparse(new_nodes)
 
 
 def main():
