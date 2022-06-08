@@ -1,13 +1,6 @@
 import ast
-import enum
 import dataclasses
 from textwrap import dedent, indent
-
-
-class DefaultType(enum.Enum):
-    NO_DEFAULT = "no_default"
-    CONSTANT = "constant"
-    FACTORY = "factory"
 
 
 def is_dataclass_decorator(node):
@@ -271,10 +264,56 @@ def make_field(subnode, **kwargs):
     return field
 
 
+def update_dataclass_node(node):
+    order = False
+    DATACLASS_STUFF_HERE = object()
+    fields = []
+    new_body = []
+    post_init = []
+    for subnode in node.body:
+        match subnode:
+            case ast.AnnAssign() if (
+                "ClassVar" not in ast.unparse(subnode.annotation)
+            ):
+                fields.append(make_field(subnode))
+            case ast.FunctionDef():
+                if DATACLASS_STUFF_HERE not in new_body:
+                    new_body.append(DATACLASS_STUFF_HERE)
+                if subnode.name == "__post_init__":
+                    post_init = subnode.body
+                else:
+                    new_body.append(subnode)
+            case _:
+                new_body.append(subnode)
+    new_decorator_list = []
+    options = {}
+    for subnode in node.decorator_list:
+        if is_dataclass_decorator(subnode):
+            options = parse_decorator_options(subnode)
+        else:
+            new_decorator_list.append(subnode)
+    if options.get("order"):
+        order = True
+        new_decorator_list.append(ast.Name(id="total_ordering"))
+    node.decorator_list = new_decorator_list
+    dataclass_extras = make_dataclass_methods(
+        node.name,
+        options,
+        fields,
+        post_init,
+    )
+    if DATACLASS_STUFF_HERE in new_body:
+        index = new_body.index(DATACLASS_STUFF_HERE)
+        new_body[index:index+1] = dataclass_extras
+    else:
+        new_body.extend(dataclass_extras)
+    node.body = new_body
+    return order
+
+
 def undataclass(code):
     nodes = ast.parse(code).body
     new_nodes = []
-    DATACLASS_STUFF_HERE = object()
     need_total_ordering = False
     for node in nodes:
         match node:
@@ -286,47 +325,7 @@ def undataclass(code):
                 is_dataclass_decorator(n)
                 for n in node.decorator_list
             ):
-                fields = []
-                new_body = []
-                post_init = []
-                for subnode in node.body:
-                    match subnode:
-                        case ast.AnnAssign() if (
-                            "ClassVar" not in ast.unparse(subnode.annotation)
-                        ):
-                            fields.append(make_field(subnode))
-                        case ast.FunctionDef():
-                            if DATACLASS_STUFF_HERE not in new_body:
-                                new_body.append(DATACLASS_STUFF_HERE)
-                            if subnode.name == "__post_init__":
-                                post_init = subnode.body
-                            else:
-                                new_body.append(subnode)
-                        case _:
-                            new_body.append(subnode)
-                new_decorator_list = []
-                options = {}
-                for subnode in node.decorator_list:
-                    if is_dataclass_decorator(subnode):
-                        options = parse_decorator_options(subnode)
-                    else:
-                        new_decorator_list.append(subnode)
-                if options.get("order"):
-                    need_total_ordering = True
-                    new_decorator_list.append(ast.Name(id="total_ordering"))
-                node.decorator_list = new_decorator_list
-                dataclass_extras = make_dataclass_methods(
-                    node.name,
-                    options,
-                    fields,
-                    post_init,
-                )
-                if DATACLASS_STUFF_HERE in new_body:
-                    index = new_body.index(DATACLASS_STUFF_HERE)
-                    new_body[index:index+1] = dataclass_extras
-                else:
-                    new_body.extend(dataclass_extras)
-                node.body = new_body
+                need_total_ordering |= update_dataclass_node(node)
                 new_nodes.append(node)
             case _:
                 new_nodes.append(node)
