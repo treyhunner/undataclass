@@ -27,6 +27,10 @@ class TestUndataclass(unittest.TestCase):
         """Tests dataclasses.dataclass, __post_init__ & manual __slots__."""
         self.validate("post_init")
 
+    def test_kw_only_initvar_and_match_args(self):
+        """Tests KW_ONLY pseudo-field, InitVar, and match_args."""
+        self.validate("kw_only_and_initvar")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

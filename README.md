@@ -90,14 +90,19 @@ Feel free to run the validate these examples yourself to confirm that the `undat
 
 ```bash
 $ python test.py
-test_from_import_no_args_no_fields_or_defaults (__main__.TestUndataclass) ... ok
-test_slots_and_frozen_args_with_default_and_factory (__main__.TestUndataclass) ... ok
+test_from_import_no_args_no_fields_or_defaults (__main__.TestUndataclass)
+Tests no-args dataclass, docstring, and no defaults. ... ok
+test_kw_only_initvar_and_match_args (__main__.TestUndataclass)
+Tests KW_ONLY pseudo-field, InitVar, and match_args. ... ok
+test_post_init (__main__.TestUndataclass)
+Tests dataclasses.dataclass, __post_init__ & manual __slots__. ... ok
+test_slots_and_frozen_args_with_default_and_factory (__main__.TestUndataclass)
+Tests slots, frozen, order, default value, & default_factory. ... ok
 
 ----------------------------------------------------------------------
-Ran 2 tests in 0.003s
+Ran 4 tests in 0.004s
 
 OK
-
 ```
 
 

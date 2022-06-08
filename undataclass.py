@@ -84,12 +84,20 @@ def make_match_args(fields):
 
 def make_arg(field):
     """Return code for an annotated function argument for __init__."""
+    field_type = field.type
+    if "InitVar" in field.type:
+        field_type = (
+            field_type
+            .removeprefix("dataclasses.InitVar[")
+            .removeprefix("InitVar[")
+            .removesuffix("]")
+        )
     if field.default is not dataclasses.MISSING:
-        return f"{field.name}: {field.type} = {field.default}"
+        return f"{field.name}: {field_type} = {field.default}"
     elif field.default_factory is not dataclasses.MISSING:
-        return f"{field.name}: {field.type} = None"
+        return f"{field.name}: {field_type} = None"
     else:
-        return f"{field.name}: {field.type}"
+        return f"{field.name}: {field_type}"
 
 
 def make_init(fields, post_init_nodes, init_vars, frozen, kw_only_fields):
@@ -117,15 +125,16 @@ def make_init(fields, post_init_nodes, init_vars, frozen, kw_only_fields):
             if f in kw_only_fields
         ]
     init_args = ", ".join(arg_list)
+    assigned_fields = [f for f in fields if f.name not in init_vars]
     if frozen:
         init_body = "\n".join([
             f"object.__setattr__(self, {f.name!r}, {f.name})"
-            for f in fields
+            for f in assigned_fields
         ])
     else:
         init_body = "\n".join([
             f"self.{f.name} = {f.name}"
-            for f in fields
+            for f in assigned_fields
         ])
     if any(f.default_factory is not dataclasses.MISSING for f in fields):
         init_body = "".join([
