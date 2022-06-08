@@ -7,6 +7,7 @@ __all__ = ["undataclass"]
 
 
 def is_dataclass_decorator(node):
+    """Return True if given decorator node is a dataclass decorator."""
     match node:
         case ast.Call(func=ast.Attribute(
             value=ast.Name(id="dataclasses"),
@@ -27,6 +28,7 @@ def is_dataclass_decorator(node):
 
 
 def parse_decorator_options(node):
+    """Return dictionary of arguments for given dataclass decorator node."""
     match node:
         case ast.Call():
             return {
@@ -40,6 +42,13 @@ def parse_decorator_options(node):
 
 
 def attr_tuple(object_name, fields):
+    """
+    Return code for a tuple of attributes for each field on an object.
+
+    Example:
+    >>> attr_tuple('self', [Field(name='x'), Field(name='y')])
+    "('self.x', 'self.y')"
+    """
     joined_names = ", ".join([
         f"{object_name}.{f.name}"
         for f in fields
@@ -51,6 +60,7 @@ def attr_tuple(object_name, fields):
 
 
 def attr_name_tuple(fields):
+    """Return code for a tuple of all field names (as strings)."""
     joined_names = ", ".join([
         repr(f.name)
         for f in fields
@@ -62,15 +72,18 @@ def attr_name_tuple(fields):
 
 
 def make_slots(fields):
+    """Return code of __slots__."""
     return f"__slots__ = {attr_name_tuple(fields)}"
 
 
 def make_match_args(fields):
+    """Return code of __match_args__."""
     fields = [f for f in fields if f.init]
     return f"__match_args__ = {attr_name_tuple(fields)}"
 
 
 def make_arg(field):
+    """Return code for an annotated function argument for __init__."""
     if field.default is not dataclasses.MISSING:
         return f"{field.name}: {field.type} = {field.default}"
     elif field.default_factory is not dataclasses.MISSING:
@@ -80,6 +93,16 @@ def make_arg(field):
 
 
 def make_init(fields, post_init_nodes, init_vars, frozen, kw_only_fields):
+    """
+    Return code for the __init__ method.
+
+    Keyword arguments:
+    fields -- list of all fields (INCLUDING any InitVar pseudo-fields)
+    post_init_nodes -- list of nodes parsed from __post_init__
+    init_vars -- list of variable names for any InitVar pseudo-fields
+    frozen -- True if dataclass is frozen
+    kw_only_fields -- list of all fields which are keyword-only arguments
+    """
     fields = [f for f in fields if f.init]
     arg_list = [
         make_arg(f)
@@ -122,6 +145,7 @@ def make_init(fields, post_init_nodes, init_vars, frozen, kw_only_fields):
 
 
 def make_repr(fields):
+    """Return code for the __repr__ method."""
     repr_args = ", ".join([
         f"{f.name}={{self.{f.name}!r}}"
         for f in fields
@@ -135,6 +159,7 @@ def make_repr(fields):
 
 
 def make_order(operator, class_name, fields):
+    """Return code for __eq__ or __lt__ method."""
     names = {"==": "eq", "<": "lt"}
     fields = [f for f in fields if f.compare]
     self_tuple = attr_tuple("self", fields)
@@ -148,6 +173,7 @@ def make_order(operator, class_name, fields):
 
 
 def make_hash(fields):
+    """Return code for __hash__ method."""
     self_tuple = attr_tuple("self", [
         f
         for f in fields
@@ -160,6 +186,7 @@ def make_hash(fields):
 
 
 def make_setattr_and_delattr():
+    """Return code for __setattr__ and __delattr__ methods."""
     return dedent("""
         def __setattr__(self, name, value):
             raise AttributeError(f"Can't set attribute {name!r}")
@@ -169,6 +196,7 @@ def make_setattr_and_delattr():
 
 
 def make_setstate_and_getstate(fields):
+    """Return code for __getstate__ and __setstate__ methods."""
     return dedent(f"""
         def __getstate__(self):
             return {attr_tuple("self", fields)}
@@ -180,6 +208,7 @@ def make_setstate_and_getstate(fields):
 
 
 def process_kw_only_fields(options, fields):
+    """Return keyword-only fields and remove any KW_ONLY pseudo-field."""
     if _ := next((f for f in fields if f.type.endswith("KW_ONLY")), None):
         kw_only_fields = fields[fields.index(_)+1:]
         fields.remove(_)
@@ -198,6 +227,11 @@ def process_kw_only_fields(options, fields):
 
 
 def process_init_vars(fields):
+    """
+    Return tuple of fields for __init__ and InitVar pseudo-field names
+
+    Also removes InitVar pseudo-fields!
+    """
     init_var_fields = [
         f
         for f in fields
@@ -210,6 +244,7 @@ def process_init_vars(fields):
 
 
 def make_dataclass_methods(class_name, options, fields, post_init):
+    """Return AST nodes for all new dataclass attributes and methods."""
     nodes = []
     kw_only_fields = process_kw_only_fields(options, fields)
     init_fields, init_vars = process_init_vars(fields)
@@ -242,12 +277,19 @@ def make_dataclass_methods(class_name, options, fields, post_init):
 
 
 def parse_field_argument(name, value_node):
+    """
+    Return appropriate value for given field argument.
+
+    For default & default_factory return code string.
+    Otherwise return literal True/False/None value.
+    """
     if name not in ("default", "default_factory", "metadata"):
         return ast.literal_eval(value_node)
     return ast.unparse(value_node)
 
 
-def make_field(subnode, **kwargs):
+def make_field(subnode):
+    """Return dataclasses.Field instance for the given field(...) node."""
     match subnode:
         case ast.AnnAssign(value=None):
             field = dataclasses.field()
@@ -268,6 +310,7 @@ def make_field(subnode, **kwargs):
 
 
 def update_dataclass_node(node):
+    """Undataclass given dataclass node by updating decorators & attributes."""
     order = False
     DATACLASS_STUFF_HERE = object()
     fields = []
@@ -315,6 +358,7 @@ def update_dataclass_node(node):
 
 
 def undataclass(code):
+    """Return version of the given code with each dataclass undataclassed."""
     nodes = ast.parse(code).body
     new_nodes = []
     need_total_ordering = False
