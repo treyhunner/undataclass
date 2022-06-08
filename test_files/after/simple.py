@@ -14,8 +14,3 @@ class Point:
         if not isinstance(other, Point):
             return NotImplemented
         return (self.x, self.y) == (other.x, other.y)
-
-    def __lt__(self, other):
-        if not isinstance(other, Point):
-            return NotImplemented
-        return (self.x, self.y) < (other.x, other.y)

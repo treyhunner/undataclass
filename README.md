@@ -45,11 +45,6 @@ class Item:
             return NotImplemented
         return (self.name, self.price, self.colors) == (other.name, other.price, other.colors)
 
-    def __lt__(self, other):
-        if not isinstance(other, Item):
-            return NotImplemented
-        return (self.name, self.price, self.colors) < (other.name, other.price, other.colors)
-
     def __hash__(self):
         return hash((self.name, self.price, self.colors))
 

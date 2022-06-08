@@ -264,7 +264,7 @@ def make_dataclass_methods(class_name, options, fields, post_init):
         nodes += ast.parse(make_repr(fields)).body
     if options.get("compare", True):
         nodes += ast.parse(make_order("==", class_name, fields)).body
-    if options.get("order", True):
+    if options.get("order", False):
         nodes += ast.parse(make_order("<", class_name, fields)).body
     if (options.get("frozen", False) and options.get("eq", True)
             or options.get("unsafe_hash", False)):

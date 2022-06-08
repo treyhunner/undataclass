@@ -1,5 +1,7 @@
 from decimal import Decimal
+from functools import total_ordering
 
+@total_ordering
 class Item:
     __slots__ = ('name', 'price', 'colors')
     __match_args__ = ('name', 'price', 'colors')
