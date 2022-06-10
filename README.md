@@ -63,7 +63,7 @@ class Item:
             object.__setattr__(self, field, value)
 ```
 
-Note that the generated code isn't PEP8 complaint, but it is fairly readable.
+Note that the generated code isn't PEP8 compliant, but it is fairly readable.
 You can either fix up the formatting yourself or run an auto-formatter (like [Black][]) against your code.
 
 
