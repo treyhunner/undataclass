@@ -31,6 +31,10 @@ class TestUndataclass(unittest.TestCase):
         """Tests KW_ONLY pseudo-field, InitVar, and match_args."""
         self.validate("kw_only_and_initvar")
 
+    def test_inheritance_and_more_default_factories(self):
+        """Tests dataclass inheritance and lambda factories."""
+        self.validate("inheritance")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

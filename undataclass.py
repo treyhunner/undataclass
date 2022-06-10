@@ -100,6 +100,20 @@ def make_arg(field):
         return f"{field.name}: {field_type}"
 
 
+def use_factory(default_factory):
+    """Return code that uses the given factory callable idiomatically."""
+    if default_factory == "list":
+        return "[]"
+    elif default_factory == "dict":
+        return "{}"
+    elif default_factory == "tuple":
+        return "()"
+    elif default_factory.startswith("lambda :"):
+        return default_factory.removeprefix("lambda :").strip()
+    else:
+        return f"{default_factory}()"
+
+
 def make_init(fields, post_init_nodes, init_vars, frozen, kw_only_fields):
     """
     Return code for the __init__ method.
@@ -138,7 +152,8 @@ def make_init(fields, post_init_nodes, init_vars, frozen, kw_only_fields):
         ])
     if any(f.default_factory is not dataclasses.MISSING for f in fields):
         init_body = "".join([
-            f"if {f.name} is None:\n    {f.name} = {f.default_factory}()\n"
+            f"if {f.name} is None:\n" +
+            f"    {f.name} = {use_factory(f.default_factory)}\n"
             for f in fields
             if f.default_factory is not dataclasses.MISSING
         ]) + init_body
@@ -232,6 +247,8 @@ def process_kw_only_fields(options, fields):
         ]
     if options.get("kw_only"):
         kw_only_fields = fields
+    for field in kw_only_fields:
+        field.kw_only = True
     return kw_only_fields
 
 
@@ -297,9 +314,9 @@ def parse_field_argument(name, value_node):
     return ast.unparse(value_node)
 
 
-def make_field(subnode):
+def make_field(node):
     """Return dataclasses.Field instance for the given field(...) node."""
-    match subnode:
+    match node:
         case ast.AnnAssign(value=None):
             field = dataclasses.field()
         case ast.AnnAssign(value=ast.Call(
@@ -309,50 +326,65 @@ def make_field(subnode):
         )):
             field = dataclasses.field(**{
                 kwarg.arg: parse_field_argument(kwarg.arg, kwarg.value)
-                for kwarg in subnode.value.keywords
+                for kwarg in node.value.keywords
             })
         case ast.AnnAssign():
-            field = dataclasses.field(default=ast.unparse(subnode.value))
-    field.name = subnode.target.id
-    field.type = ast.unparse(subnode.annotation)
+            field = dataclasses.field(default=ast.unparse(node.value))
+    field.name = node.target.id
+    field.type = ast.unparse(node.annotation)
     return field
 
 
-def update_dataclass_node(node):
+def merge_fields(field_list):
+    new_fields = {}
+    for field in field_list:
+        new_fields[field.name] = field
+    return list(new_fields.values())
+
+
+def update_dataclass_node(dataclass_node, previous_dataclass_fields):
     """Undataclass given dataclass node by updating decorators & attributes."""
     order = False
     DATACLASS_STUFF_HERE = object()
+    base_fields = []
     fields = []
     new_body = []
     post_init = []
-    for subnode in node.body:
-        match subnode:
+    for node in reversed(dataclass_node.bases):
+        match node:
+            case ast.Name(id=class_name):
+                if class_name in previous_dataclass_fields:
+                    base_fields += previous_dataclass_fields[class_name]
+    for node in dataclass_node.body:
+        match node:
             case ast.AnnAssign() if (
-                "ClassVar" not in ast.unparse(subnode.annotation)
+                "ClassVar" not in ast.unparse(node.annotation)
             ):
-                fields.append(make_field(subnode))
+                fields.append(make_field(node))
             case ast.FunctionDef():
                 if DATACLASS_STUFF_HERE not in new_body:
                     new_body.append(DATACLASS_STUFF_HERE)
-                if subnode.name == "__post_init__":
-                    post_init = subnode.body
+                if node.name == "__post_init__":
+                    post_init = node.body
                 else:
-                    new_body.append(subnode)
+                    new_body.append(node)
             case _:
-                new_body.append(subnode)
+                new_body.append(node)
     new_decorator_list = []
     options = {}
-    for subnode in node.decorator_list:
-        if is_dataclass_decorator(subnode):
-            options = parse_decorator_options(subnode)
+    for node in dataclass_node.decorator_list:
+        if is_dataclass_decorator(node):
+            options = parse_decorator_options(node)
         else:
-            new_decorator_list.append(subnode)
+            new_decorator_list.append(node)
     if options.get("order"):
         order = True
         new_decorator_list.append(ast.Name(id="total_ordering"))
-    node.decorator_list = new_decorator_list
+    dataclass_node.decorator_list = new_decorator_list
+    fields = merge_fields([*base_fields, *fields])
+    previous_dataclass_fields[dataclass_node.name] = fields
     dataclass_extras = make_dataclass_methods(
-        node.name,
+        dataclass_node.name,
         options,
         fields,
         post_init,
@@ -361,8 +393,8 @@ def update_dataclass_node(node):
         index = new_body.index(DATACLASS_STUFF_HERE)
         new_body[index:index+1] = dataclass_extras
     else:
-        new_body.extend(dataclass_extras)
-    node.body = new_body
+        new_body += dataclass_extras
+    dataclass_node.body = new_body
     return order
 
 
@@ -371,6 +403,7 @@ def undataclass(code):
     nodes = ast.parse(code).body
     new_nodes = []
     need_total_ordering = False
+    dataclass_fields_found = {}
     for node in nodes:
         match node:
             case ast.ImportFrom(module="dataclasses"):
@@ -381,7 +414,10 @@ def undataclass(code):
                 is_dataclass_decorator(n)
                 for n in node.decorator_list
             ):
-                need_total_ordering |= update_dataclass_node(node)
+                need_total_ordering |= update_dataclass_node(
+                    node,
+                    dataclass_fields_found,
+                )
                 new_nodes.append(node)
             case _:
                 new_nodes.append(node)

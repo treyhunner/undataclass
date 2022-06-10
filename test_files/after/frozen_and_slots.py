@@ -8,7 +8,7 @@ class Item:
 
     def __init__(self, name: str, price: Decimal=Decimal(0), colors: str=None) -> None:
         if colors is None:
-            colors = list()
+            colors = []
         object.__setattr__(self, 'name', name)
         object.__setattr__(self, 'price', price)
         object.__setattr__(self, 'colors', colors)
