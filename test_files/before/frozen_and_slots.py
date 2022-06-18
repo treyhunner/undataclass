@@ -6,4 +6,4 @@ from decimal import Decimal
 class Item:
     name: str
     price: Decimal = Decimal(0)
-    colors: str = field(default_factory=list)
+    colors: str = field(default_factory=list, compare=False)

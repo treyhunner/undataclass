@@ -20,15 +20,15 @@ class Item:
     def __eq__(self, other):
         if not isinstance(other, Item):
             return NotImplemented
-        return (self.name, self.price, self.colors) == (other.name, other.price, other.colors)
+        return (self.name, self.price) == (other.name, other.price)
 
     def __lt__(self, other):
         if not isinstance(other, Item):
             return NotImplemented
-        return (self.name, self.price, self.colors) < (other.name, other.price, other.colors)
+        return (self.name, self.price) < (other.name, other.price)
 
     def __hash__(self):
-        return hash((self.name, self.price, self.colors))
+        return hash((self.name, self.price))
 
     def __setattr__(self, name, value):
         raise AttributeError(f"Can't set attribute {name!r}")
