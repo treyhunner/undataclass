@@ -29,14 +29,25 @@ def is_dataclass_decorator(node):
 
 def parse_decorator_options(node):
     """Return dictionary of arguments for given dataclass decorator node."""
+    defaults = {
+        "init": True,
+        "repr": True,
+        "eq": True,
+        "order": False,
+        "unsafe_hash": False,
+        "frozen": False,
+        "match_args": True,
+        "kw_only": False,
+        "slots": False,
+    }
     match node:
         case ast.Call():
-            return {
+            return defaults | {
                 subnode.arg: ast.literal_eval(subnode.value)
                 for subnode in node.keywords
             }
         case ast.Attribute() | ast.Name():
-            return {}
+            return defaults
         case _:
             assert False  # There's a bug!
 
@@ -53,10 +64,7 @@ def attr_tuple(object_name, fields):
         f"{object_name}.{f.name}"
         for f in fields
     ])
-    if len(fields) == 1:
-        return f"({joined_names},)"
-    else:
-        return f"({joined_names})"
+    return f"({joined_names},)" if len(fields) == 1 else f"({joined_names})"
 
 
 def attr_name_tuple(fields):
@@ -65,10 +73,7 @@ def attr_name_tuple(fields):
         repr(f.name)
         for f in fields
     ])
-    if len(fields) == 1:
-        return f"({joined_names},)"
-    else:
-        return f"({joined_names})"
+    return f"({joined_names},)" if len(fields) == 1 else f"({joined_names})"
 
 
 def make_slots(fields):
@@ -245,7 +250,7 @@ def process_kw_only_fields(options, fields):
             for f in fields
             if f.kw_only is True or f in old_kw_only_fields
         ]
-    if options.get("kw_only"):
+    if options["kw_only"]:
         kw_only_fields = fields
     for field in kw_only_fields:
         field.kw_only = True
@@ -266,7 +271,7 @@ def process_init_vars(fields):
     init_fields = list(fields)
     for field in init_var_fields:
         fields.remove(field)
-    return init_fields, [f.name for f in init_var_fields]
+    return (init_fields, [f.name for f in init_var_fields])
 
 
 def make_dataclass_methods(class_name, options, fields, post_init):
@@ -274,30 +279,29 @@ def make_dataclass_methods(class_name, options, fields, post_init):
     nodes = []
     kw_only_fields = process_kw_only_fields(options, fields)
     init_fields, init_vars = process_init_vars(fields)
-    if options.get("slots", False):
+    if options["slots"]:
         nodes += ast.parse(make_slots(fields)).body
-    if options.get("match_args", True):
+    if options["match_args"]:
         nodes += ast.parse(make_match_args(fields)).body
-    if options.get("init", True):
+    if options["init"]:
         nodes += ast.parse(make_init(
             init_fields,
             post_init,
             init_vars,
-            options.get("frozen", False),
+            options["frozen"],
             kw_only_fields,
         )).body
-    if options.get("repr", True):
+    if options["repr"]:
         nodes += ast.parse(make_repr(fields)).body
-    if options.get("compare", True):
+    if options["eq"]:
         nodes += ast.parse(make_order("==", class_name, fields)).body
-    if options.get("order", False):
+    if options["order"]:
         nodes += ast.parse(make_order("<", class_name, fields)).body
-    if (options.get("frozen", False) and options.get("eq", True)
-            or options.get("unsafe_hash", False)):
+    if options["frozen"] and options["eq"] or options["unsafe_hash"]:
         nodes += ast.parse(make_hash(fields)).body
-    if options.get("frozen", False):
+    if options["frozen"]:
         nodes += ast.parse(make_setattr_and_delattr()).body
-        if options.get("slots", False):
+        if options["slots"]:
             nodes += ast.parse(make_setstate_and_getstate(fields)).body
     return nodes
 
@@ -336,9 +340,11 @@ def make_field(node):
 
 
 def merge_fields(field_list):
-    new_fields = {}
-    for field in field_list:
-        new_fields[field.name] = field
+    """De-duplicate fields by their name (while maintaining field order)."""
+    new_fields = {
+        field.name: field
+        for field in field_list
+    }
     return list(new_fields.values())
 
 
@@ -377,7 +383,7 @@ def update_dataclass_node(dataclass_node, previous_dataclass_fields):
             options = parse_decorator_options(node)
         else:
             new_decorator_list.append(node)
-    if options.get("order"):
+    if options["order"]:
         order = True
         new_decorator_list.append(ast.Name(id="total_ordering"))
     dataclass_node.decorator_list = new_decorator_list
@@ -408,7 +414,7 @@ def undataclass(code):
         match node:
             case ast.ImportFrom(module="dataclasses"):
                 continue  # Don't import dataclasses anymore
-            case ast.Import() if node.names[0].name == "dataclasses":
+            case ast.Import(names=[ast.alias("dataclasses")]):
                 continue  # Don't import dataclasses anymore
             case ast.ClassDef() if any(
                 is_dataclass_decorator(n)
