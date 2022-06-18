@@ -2,6 +2,8 @@
 
 Turn dataclasses into not-dataclasses
 
+You can [convert a dataclass to a regular class in Python][app] right from your web browser.
+
 
 ## Usage
 
@@ -100,12 +102,15 @@ test_post_init (__main__.TestUndataclass)
 Tests dataclasses.dataclass, __post_init__ & manual __slots__. ... ok
 test_slots_and_frozen_args_with_default_and_factory (__main__.TestUndataclass)
 Tests slots, frozen, order, default value, & default_factory. ... ok
+test_with_functions_and_regular_class (__main__.TestUndataclass)
+Tests non-dataclass and also regular methods. ... ok
 
 ----------------------------------------------------------------------
-Ran 5 tests in 0.008s
+Ran 6 tests in 0.008s
 
 OK
 ```
 
 
 [black]: https://black.readthedocs.io
+[app]: https://www.pythonmorsels.com/undataclass/
