@@ -35,6 +35,10 @@ class TestUndataclass(unittest.TestCase):
         """Tests dataclass inheritance and lambda factories."""
         self.validate("inheritance")
 
+    def test_with_functions_and_regular_class(self):
+        """Tests non-dataclass and also regular methods."""
+        self.validate("with_functions_and_regular_class")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
